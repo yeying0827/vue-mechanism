@@ -1,52 +1,45 @@
-// template例子
-
-// <div :class="c" class="demo" v-if="isShow">
-// 	<span v-for="item in sz">{{item}}</span>
-// </div>
-
-
-// 转化成的template字符串
-let html = '<div :class="c" class="demo" v-if="isShow"><span v-for="item in sz">hello,{{item}}.{{item}}</span></div>';
-
-
 /**
- * compile
+ * 将`vnode.js` `template-compile.js` `template-generate.js`组合运行测试结果
  */
- // parse得到的AST的样子
- /*{
- 	'attrsMap': {
- 		':class': 'c',
- 		'class': 'demo',
- 		'v-if': 'isShow'
- 	},
- 	'classBinding': 'c',
- 	'if': 'isShow',
- 	'ifConditions': [
- 		{
- 			'exp': 'isShow'
- 		}
- 	], 
- 	'staticClass': 'demo',
- 	'tag': 'div',
- 	'children': [
- 		{
- 			'attrsMap': {
- 				'v-for': 'item in sz'
- 			},
- 			'alias': 'item',
- 			'for': 'sz',
- 			'forProcessed': true,
- 			'tag': 'span',
- 			'children': [
- 				{
- 					'expression': '_s(item)',
- 					'text': '{{item}}'
- 				}
- 			]
- 		}
- 	]
- }*/
 
+// -------------------- vnode -------------------- //
+class VNode {
+	constructor (tag, data, children, text, elm) {
+		/* 当前节点的标签名 */
+		this.tag = tag;
+		/* 当前节点的一些数据信息，如props、attrs等 */
+		this.data = data;
+		/* 当前节点的子节点，是一个数组 */
+		this.children = children;
+		/* 当前节点的文本 */
+		this.text = text;
+		/* 当前虚拟节点对应的真实dom节点 */
+		this.elm = elm;
+	}
+}
+
+function createEmptyVNode () {
+	const node = new VNode();
+	node.text = '';
+	return node;
+}
+// 创建一个文本节点
+function createTextVNode (val) {
+	return new VNode( undefined, undefined, undefined, String( val ) );
+}
+// 克隆一个VNode节点
+function cloneVNode (node) {
+	const cloneVnode = new VNode(
+		node.tag,
+		node.data,
+		node.children,
+		node.text,
+		node.elm
+	);
+	return cloneVnode;
+}
+
+// -------------------- compile -------------------- //
 // 解析需要用到的正则
 const ncname = '[a-zA-Z_][\\w\\-\\.]*';
 
@@ -75,15 +68,6 @@ const forAliasRE = /(.*?)\s+(?:in|of)\s+(.*)/;
 let index = 0;
 
 /**
- * 移动指针。
- * 每匹配解析完一段，需要将已经匹配掉的去掉，头部的指针指向接下来需要匹配的部分
- */
-function advance (n) {
-	index += n;
-	html = html.substring( n );
-}
-
-/**
  * 维护一个stack栈来保存已经解析好的标签头：
  * 在解析尾部标签的时候得到所属的层级关系以及父标签。
  */
@@ -92,73 +76,12 @@ function advance (n) {
  	root; // 用于指向根标签节点
 
 /**
- * 循环解析template对应字符串。
- * 循环进行字符串匹配
- * 用正则在匹配到标签头、标签尾以及文本的时候分别进行不同的处理
+ * 移动指针。
+ * 每匹配解析完一段，需要将已经匹配掉的去掉，头部的指针指向接下来需要匹配的部分
  */
-function parseHTML () {
-	while( html ) {
-		let textEnd = html.indexOf( '<' );
-		if (textEnd === 0) {
-			const endTagMatch = html.match( endTag );
-			if (endTagMatch) {
-				// ...process end tag
-				advance(endTagMatch[0].length);
-				parseEndTag( endTagMatch[1] );
-				continue;
-			} 
-			if (html.match( startTagOpen )) {
-				// ...process start tag
-				const startTagMatch = parseStartTag();
-				const element = { // 将`startTagMatch`得到的结果首先封装成`element`。即最终形成的AST的节点，标签节点的type为1
-					type: 1,
-					tag: startTagMatch.tagName,
-					lowerCasedTag: startTagMatch.tagName.toLowerCase(),
-					attrsList: startTagMatch.attrs,
-					attrsMap: makeAttrsMap( startTagMatch.attrs ),
-					parent: currentParent,
-					children: []
-				};
-
-				// 简单处理 v-if|v-for指令
-				processIf( element );
-				processFor( element );
-
-				if (!root) { // 让`root`指向根节点的引用
-					root = element;
-				}
-				if (currentParent) { // 将当前节点的`element`放入父节点`currentParent`的`children`数组中
-					currentParent.children.push( element );
-				}
-				// 将当前节点`element`压入stack栈中，并将`currentParent`指向当前节点。
-				// 如果下一个解析还是头标签或者文本，会成为当前节点的子节点，如果是尾标签，那么将会从栈中取出当前节点
-				if (!startTagMatch.unarySlash) { // 非自闭和标签
-					stack.push( element ); 
-					currentParent = element;
-				}
-				continue;
-			}
-		} else {
-			// ...process text
-			text = html.substring( 0, textEnd );
-			advance( textEnd );
-			let expression;
-			if (expression = parseText(text)) { // vuejs表达式
-				currentParent.children.push({
-					type: 2, // 表达式节点
-					text,
-					expression
-				});
-			} else {
-				currentParent.children.push({ // 普通文本
-					type: 3, // 文本节点
-					text
-				});
-			}
-			continue;
-		}
-	}
-	return root;
+function advance (n) {
+	index += n;
+	html = html.substring( n );
 }
 
 /**
@@ -206,7 +129,7 @@ function makeAttrsMap (attrs) {
 
 /**
  * 解析尾标签
- * 从stack栈中取出最近的跟自己标签名一致的那个元素，将`currentParent`指向那个元素的前一个元素，并将该元素之前的元素都从stack中出栈
+ * 从stack栈中取出最近的跟自己标签名一致的那个元素，将`currentParent`指向那个元素，并将该元素之前的元素都从stack中出栈
  */
 function parseEndTag (tagName) {
 	let pos;
@@ -242,7 +165,6 @@ function parseText (text) {
 	let match, index;
 	// ?? 什么时候跳出循环
 	while ((match = defaultTagRE.exec( text ))) {
-		// console.log( match );
 		index = match.index; // 匹配到的内容的下标
 
 		if (index > lastIndex) { // 大于lastIndex， 说明表达式前面存在普通文本，直接先push这段到tokens数组中
@@ -252,10 +174,7 @@ function parseText (text) {
 		const exp = match[1].trim(); // 匹配到的表达式，转化成特定形式push进tokens数组
 		tokens.push( `_s(${exp})` );
 		lastIndex = index + match[0].length; // 更新lastIndex
-		// console.log( text );
-		// console.log( defaultTagRE.lastIndex );
 	}
-	// console.log( match );
 
 	if (lastIndex < text.length) { // 如果剩下的内容无法匹配vue表达式的正则，就全部都push进tokens数组
 		tokens.push( JSON.stringify( text.slice(lastIndex) ) );
@@ -308,6 +227,76 @@ function processIf (el) {
 			block: el
 		} );
 	}
+}
+
+/**
+ * 循环解析template对应字符串。
+ * 循环进行字符串匹配
+ * 用正则在匹配到标签头、标签尾以及文本的时候分别进行不同的处理
+ */
+function parseHTML () {
+	while( html ) {
+		let textEnd = html.indexOf( '<' );
+		if (textEnd === 0) {
+			const endTagMatch = html.match( endTag );
+			if (endTagMatch) {
+				// ...process end tag
+				advance(endTagMatch[0].length);
+				parseEndTag( endTagMatch[1] );
+				continue;
+			} 
+			if (html.match( startTagOpen )) {
+				// ...process start tag
+				const startTagMatch = parseStartTag();
+				const element = { // 将`startTagMatch`得到的结果首先封装成`element`。即最终形成的AST的节点，标签节点的type为1
+					type: 1,
+					tag: startTagMatch.tagName,
+					lowerCasedTag: startTagMatch.tagName.toLowerCase(),
+					attrsList: startTagMatch.attrs,
+					attrsMap: makeAttrsMap( startTagMatch.attrs ),
+					parent: currentParent,
+					children: []
+				};
+
+				// 简单处理 v-if|v-for指令
+				processIf( element );
+				processFor( element );
+
+				if (!root) { // 让`root`指向根节点的引用
+					root = element;
+				}
+				if (currentParent) { // 将当前节点的`element`放入父节点`currentParent`的`children`数组中
+					currentParent.children.push( element );
+				}
+				// 将当前节点`element`压入stack栈中，并将`currentParent`指向当前节点。
+				// 如果下一个解析还是头标签或者文本，会成为当前节点的子节点，如果是尾标签，那么将会从栈中取出当前节点
+				if (!startTagMatch.unarySlash) {
+					stack.push( element ); 
+					currentParent = element;
+				}
+				continue;
+			}
+		} else {
+			// ...process text
+			text = html.substring( 0, textEnd );
+			advance( textEnd );
+			let expression;
+			if (expression = parseText(text)) { // vuejs表达式
+				currentParent.children.push({
+					type: 2, // 表达式节点
+					text,
+					expression
+				});
+			} else {
+				currentParent.children.push({ // 普通文本
+					type: 3, // 文本节点
+					text
+				});
+			}
+			continue;
+		}
+	}
+	return root;
 }
 
 function parse() {
@@ -369,5 +358,91 @@ function optimize (rootAst) {
 	martStaticRoots( rootAst );
 }
 
+// -------------------- generate -------------------- //
+function generate (rootAst) {
+	/**
+	 * 处理`if`条件
+	 */
+	function genIf (el) {
+		el.ifProcessed = true;
+		if (!el.ifConditions.length) {
+			return '_e()';
+		}
+		return `(${el.ifConditions[0].exp})?${genElement(el.ifConditions[0].block)}: _e()`;
+	}
+
+	/**
+	 * 处理`for`循环
+	 */
+	function genFor (el) {
+		el.forProcessed = true;
+
+		const exp = el.for, // 循环的对象
+			alias = el.alias,
+			iterator1 = el.iterator1 ? `,${el.iterator1}` : '',
+			iterator2 = el.iterator2 ? `,${el.iterator2}` : '';
+
+		return `_l((${exp}),` +
+			`function(${alias}${iterator1}${iterator2}){` +
+			`return ${genElement(el)}` +
+		'})';
+	}
+
+	/**
+	 * 处理文本节点
+	 */
+	function genText (el) {
+		return `_v(${el.expression})`;
+	}
+
+	/**
+	 * 处理标签节点。
+	 * 根据是否有`if`或者`for`标记，判断是否要用`genIf`或者`genFor`处理，
+	 * 否则通过`genChildren`处理子节点，同时得到`staticClass`、`class`等属性
+	 */
+	function genElement (el) {
+		if (el.if && !el.ifProcessed) {
+			return genIf (el);
+		} else if (el.for && !el.forProcessed) {
+			return genFor (el);
+		} else {
+			const children = genChildren( el );
+			let code;
+			code = `_c('${el.tag},'{staticClass: ${el.attrsMap && el.attrsMap['class']},class: ${el.attrsMap && el.attrsMap[':class']},}${
+				children ? `,${children}` : ''
+			}`;
+			return code;
+		}
+	}
+
+	function genNode (el) {
+		if (el.type === 1) {
+			return genElement( el );
+		} else {
+			return genText( el );
+		}
+	}
+
+	/**
+	 * 遍历所有子节点，通过`genNode`处理后用“,”隔开拼接成字符串
+	 */
+	function genChildren (el) {
+		const children = el.children;
+
+		if (children && children.length > 0) {
+			return `${children.map(genNode).join(',')}`;
+		}
+	}
+
+	const code = rootAst ? genElement( rootAst ) : '_c("div")';
+	return {
+		render: `with(this){return ${code}`,
+	} 
+}
+
+// -------------------- TEST -------------------- //
+let html = '<div :class="c" class="demo" v-if="isShow"><span v-for="item in sz">hello, {{item}}.</span></div>';
 const ast = parse();
-optimize(ast);
+optimize( ast );
+const result = generate( ast );
+console.log( result );
