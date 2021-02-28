@@ -20,7 +20,7 @@ descriptor：对于属性的描述
 
 
 
-###descriptor描述符
+### descriptor描述符
 
 **descriptor有两种主要类型：data型和accessor型。**
 
@@ -66,7 +66,7 @@ descriptor必然是两者之一，不会同时既是data型又是accessor型。
 
 
 
-###例子
+### 例子
 
 * 修改属性
 
@@ -98,7 +98,7 @@ descriptor必然是两者之一，不会同时既是data型又是accessor型。
 
   
 
-###兼容
+### 兼容
 
 * Array对象的length属性
 
