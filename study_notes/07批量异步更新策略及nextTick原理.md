@@ -76,6 +76,7 @@ watcher2.update();
 =>!waiting && waiting=true && nextTick(()=> { // flushSchedulerQueue
   // 执行所有watcher的run方法
   waiting = false
+  queue.length = 0;
 })
 
 第二批人从等待区出发（第一批人已通知游玩结束：waiting设为false停止等待），下一批人进入等待区（waiting设为true开始等待），第二批人入站
@@ -98,3 +99,6 @@ watcher2.update();
 
 ![批量异步更新](./批量异步更新.jpeg)
 
+
+
+如果queue里还有watcher没有进入nextTick，后续没有触发queueWatcher，会怎么样？
